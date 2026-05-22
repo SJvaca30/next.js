@@ -1314,7 +1314,6 @@ export async function createHotReloaderTurbopack(
           const parsedData = JSON.parse(
             typeof data !== 'string' ? data.toString() : data
           )
-
           // Next.js messages
           switch (parsedData.event) {
             case 'span-end': {

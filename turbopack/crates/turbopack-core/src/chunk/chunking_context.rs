@@ -440,6 +440,9 @@ pub trait ChunkingContext {
         availability_info: AvailabilityInfo,
     ) -> Vc<ChunkGroupResult>;
 
+    /// Like [`Self::chunk_group`], but additionally produces an evaluate chunk
+    /// (and, in dev, a chunk-list register chunk) that bootstraps and runs
+    /// `chunk_group`'s entries.
     #[turbo_tasks::function]
     fn evaluated_chunk_group(
         self: Vc<Self>,

@@ -21,7 +21,7 @@ pub async fn get_app_client_shared_chunk_group(
     }
 
     let span = tracing::trace_span!("app client shared");
-    let app_client_shared_chunk_grou = async {
+    let app_client_shared_chunk_group = async {
         client_chunking_context
             .evaluated_chunk_group(
                 ident,
@@ -42,5 +42,5 @@ pub async fn get_app_client_shared_chunk_group(
     .instrument(span)
     .await?;
 
-    Ok(app_client_shared_chunk_grou)
+    Ok(app_client_shared_chunk_group)
 }

@@ -23,7 +23,7 @@ use turbopack_core::{
         binding_usage_info::{BindingUsageInfo, ModuleExportUsage},
         chunk_group_info::ChunkGroup,
     },
-    output::{OutputAsset, OutputAssets},
+    output::{ExpandOutputAssetsInput, OutputAsset, OutputAssets, expand_output_assets},
 };
 use turbopack_ecmascript::{
     async_chunk::module::AsyncLoaderModule,
@@ -768,7 +768,7 @@ impl ChunkingContext for BrowserChunkingContext {
     ) -> Result<Vc<ChunkGroupResult>> {
         let span = tracing::info_span!("chunking", name = display(ident.to_string().await?));
         async move {
-            let this = self.await?;
+            let entries = chunk_group.entries();
             let input_availability_info = availability_info;
             let MakeChunkGroupResult {
                 chunks,
@@ -785,36 +785,11 @@ impl ChunkingContext for BrowserChunkingContext {
 
             let chunks = chunks.await?;
 
-            let mut assets = chunks
+            let assets = chunks
                 .iter()
                 .map(|chunk| self.generate_chunk(*chunk))
                 .try_join()
                 .await?;
-
-            if this.enable_hot_module_replacement {
-                let ident = if let Some(input_availability_info_ident) =
-                    input_availability_info.ident().await?
-                {
-                    ident
-                        .owned()
-                        .await?
-                        .with_modifier(input_availability_info_ident)
-                        .into_vc()
-                } else {
-                    ident
-                };
-                let other_assets = Vc::cell(assets.clone());
-                assets.push(
-                    self.generate_chunk_list_register_chunk(
-                        ident,
-                        EvaluatableAssets::empty(),
-                        other_assets,
-                        EcmascriptDevChunkListSource::Dynamic,
-                    )
-                    .to_resolved()
-                    .await?,
-                );
-            }
 
             Ok(ChunkGroupResult {
                 assets: ResolvedVc::cell(assets),
@@ -877,6 +852,18 @@ impl ChunkingContext for BrowserChunkingContext {
             );
 
             if this.enable_hot_module_replacement {
+                // inner=true follows manifest chunk references to get actual dynamic component
+                // chunks, so the single HMR chunk list covers all lazily-loaded modules.
+                let all_dynamic_chunks = expand_output_assets(
+                    references
+                        .iter()
+                        .copied()
+                        .map(ExpandOutputAssetsInput::Reference)
+                        .chain(assets.iter().copied().map(ExpandOutputAssetsInput::Asset)),
+                    true,
+                )
+                .await?;
+
                 let ident = if let Some(input_availability_info_ident) =
                     input_availability_info.ident().await?
                 {
@@ -892,7 +879,7 @@ impl ChunkingContext for BrowserChunkingContext {
                     self.generate_chunk_list_register_chunk(
                         ident,
                         entries,
-                        other_assets,
+                        Vc::cell(all_dynamic_chunks),
                         EcmascriptDevChunkListSource::Entry,
                     )
                     .to_resolved()
